@@ -125,12 +125,14 @@ struct ContentView: View {
 //    }
     @State private var image: Image?
     @State private var filterIntensity = 0.5
+    @State private var radius = 100.0
     @State private var showingImagePicker = false
     @State private var inputImage: UIImage?
     @State private var currentFilter: CIFilter = CIFilter.sepiaTone()
     let context = CIContext()
     @State private var showingFilterSheet = false
     @State private var processedImage: UIImage?
+    @State private var saveDisabled = true
     
     var body: some View {
         NavigationView {
@@ -157,10 +159,17 @@ struct ContentView: View {
                         .onChange(of: filterIntensity) {
                             applyProcessing()
                         }
-                    
                 }
                 .padding(.vertical)
                 
+                HStack {
+                    Text("Radius")
+                    Slider (value: $radius, in: 0...200)
+                        .onChange(of: radius) {
+                            applyProcessing()
+                        }
+                }
+                .padding(.vertical)
                 HStack {
                     Button("Change Filter") {
                         showingFilterSheet = true
@@ -169,12 +178,14 @@ struct ContentView: View {
                     Spacer()
                     
                     Button("Save", action: save)
+                        .disabled (saveDisabled)
                     
                 }
             }
             .padding([.horizontal, .bottom])
             .navigationTitle("Instafilter")
-            .onChange(of: inputImage) {               loadImage()
+            .onChange(of: inputImage) {               
+                loadImage()
             }
             .sheet(isPresented:$showingImagePicker) {
                 ImagePicker(image: $inputImage)
@@ -194,8 +205,10 @@ struct ContentView: View {
     
     func loadImage() {
         guard let inputImage = inputImage else { return }
-
-        let beginImage = CIImage(image: inputImage)
+        saveDisabled = false
+        //let beginImage = CIImage(image: inputImage)
+        let beginImage = CIImage(image: inputImage, options: [CIImageOption.applyOrientationProperty:true])
+        
         currentFilter.setValue(beginImage, forKey: kCIInputImageKey)
         applyProcessing()
         
@@ -219,13 +232,16 @@ struct ContentView: View {
     func applyProcessing() {
         let inputKeys = currentFilter.inputKeys
         if inputKeys.contains(kCIInputIntensityKey) { currentFilter.setValue(filterIntensity, forKey: kCIInputIntensityKey) }
-        if inputKeys.contains(kCIInputRadiusKey) { currentFilter.setValue(filterIntensity * 200, forKey: kCIInputRadiusKey) }
+        if inputKeys.contains(kCIInputRadiusKey) {
+            print (radius)
+            currentFilter.setValue(radius, forKey: kCIInputRadiusKey)
+        }
         if inputKeys.contains(kCIInputScaleKey) { currentFilter.setValue(filterIntensity * 10, forKey: kCIInputScaleKey) }
         
         guard let outputImage = currentFilter.outputImage else { return }
 
         if let cgimg = context.createCGImage(outputImage, from: outputImage.extent) {
-            let uiImage = UIImage(cgImage: cgimg)
+            let uiImage = UIImage(cgImage: cgimg, scale: 1, orientation: inputImage?.imageOrientation ?? .up)
             image = Image(uiImage: uiImage)
             processedImage = uiImage
         }
